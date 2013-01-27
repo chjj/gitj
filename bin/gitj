@@ -4,11 +4,25 @@
  * gitj
  */
 
+/**
+ * Modules
+ */
+
 var child_process = require('child_process')
   , spawn = child_process.spawn
   , exec = child_process.execFile
   , path = require('path')
   , fs = require('fs');
+
+/**
+ * Log Format
+ */
+
+var FORMAT = 'format:commit %H%nAuthor: %an <%ae>%nAuthorDate: %ad%nCommit: %cn <%ce>%nCommitDate: %cd%nRefs:%d%n%n%B%n';
+
+/**
+ * Program
+ */
 
 var Program = require('blessed')
   , p;
@@ -23,10 +37,11 @@ function parseLogs(text) {
 
       log = {
         id: /^commit ([a-f0-9]{40})\n/.exec(log)[1],
-        author: /\nAuthor:\s+([^\n]+)/.exec(log)[1].trim(),
-        authorDate: /\nAuthorDate:\s+([^\n]+)/.exec(log)[1].trim(),
-        committer: /\nCommit:\s+([^\n]+)/.exec(log)[1].trim(),
-        commitDate: /\nCommitDate:\s+([^\n]+)/.exec(log)[1].trim(),
+        author: /\nAuthor:[ \t]+([^\n]+)/.exec(log)[1].trim(),
+        authorDate: /\nAuthorDate:[ \t]+([^\n]+)/.exec(log)[1].trim(),
+        committer: /\nCommit:[ \t]+([^\n]+)/.exec(log)[1].trim(),
+        commitDate: /\nCommitDate:[ \t]+([^\n]+)/.exec(log)[1].trim(),
+        refs: /\nRefs:[ \t]*([^\n]*)/.exec(log)[1].trim(),
         message: log.split('\n\n').slice(1).join('\n\n').trim()
       };
 
@@ -35,6 +50,8 @@ function parseLogs(text) {
       log.committerEmail = (log.committer.split(' <')[1] || '').slice(0, -1);
       log.authorName = log.author.split(' <')[0];
       log.authorEmail = (log.author.split(' <')[1] || '').slice(0, -1);
+
+      if (log.refs === '()') log.refs = '';
 
       return log;
     })
@@ -47,7 +64,7 @@ function getLogs(repo, branch, callback) {
     branch = null;
   }
 
-  var args = ['log', '--format=fuller'];
+  var args = ['log', '--format=' + FORMAT];
 
   if (branch) args.push(branch);
 
@@ -61,36 +78,6 @@ function getLogs(repo, branch, callback) {
     if (stderr) return callback(new Error(stderr));
     return callback(null, parseLogs(stdout));
   });
-
-  var buff = '';
-
-  var ps = spawn('git', args, {
-    cwd: repo,
-    stdio: ['ignore', 'pipe', 'ignore'],
-    env: process.env
-  });
-
-  ps.stdout.setEncoding('utf8');
-
-  ps.stdout.on('data', function(data) {
-    buff += data;
-  });
-
-  ps.stdout.on('error', callback);
-  ps.on('error', callback);
-
-  ps.on('exit', function(code) {
-    if (code !== 0) {
-      callback(new Error('Exit code: ' + code))
-      callback = function() {};
-    }
-  });
-
-  ps.on('close', function() {
-    return callback(null, parseLogs(buff));
-  });
-
-  return ps;
 }
 
 function parseBranches(data) {
@@ -120,36 +107,6 @@ function getBranches(repo, callback) {
     if (stderr) return callback(new Error(stderr));
     return callback(null, parseBranches(stdout));
   });
-
-  var buff = '';
-
-  var ps = spawn('git', ['branch'], {
-    cwd: repo,
-    stdio: ['ignore', 'pipe', 'ignore'],
-    env: process.env
-  });
-
-  ps.stdout.setEncoding('utf8');
-
-  ps.stdout.on('data', function(data) {
-    buff += data;
-  });
-
-  ps.stdout.on('error', callback);
-  ps.on('error', callback);
-
-  ps.on('exit', function(code) {
-    if (code !== 0) {
-      callback(new Error('Exit code: ' + code))
-      callback = function() {};
-    }
-  });
-
-  ps.on('close', function() {
-    return callback(null, parseBranches(buff));
-  });
-
-  return ps;
 }
 
 function showCommit(repo, id, file, callback) {
@@ -600,7 +557,7 @@ function render(opt, callback) {
         , j = i + (from - 1);
 
       date = date.toISOString().split('T')[0];
-      msg = msg.slice(0, p.cols - 17 - date.length - log.authorEmail.length);
+      msg = msg.slice(0, p.cols - 17 - date.length - log.authorEmail.length - log.refs.length - 2);
 
       p.write(' ');
 
@@ -619,6 +576,11 @@ function render(opt, callback) {
 
       // separator
       p.write(' │ ');
+
+      // refs
+      if (log.refs) {
+        p.write(log.refs + ' ', 'yellow fg');
+      }
 
       // message
       p.write(msg);
