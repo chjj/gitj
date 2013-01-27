@@ -152,9 +152,14 @@ function editCommit(repo, id, callback) {
   });
 
   ps.on('exit', function(code) {
-    return code !== 0
-      ? callback(new Error('Exit code: ' + code))
-      : callback();
+    if (code !== 0) {
+      callback(new Error('Exit code: ' + code))
+      callback = function() {};
+    }
+  });
+
+  ps.on('close', function() {
+    return callback();
   });
 
   return ps;
