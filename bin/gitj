@@ -10,7 +10,8 @@ var child_process = require('child_process')
   , path = require('path')
   , fs = require('fs');
 
-var Program = require('blessed');
+var Program = require('blessed')
+  , p;
 
 function parseLogs(text) {
   return text
@@ -159,7 +160,12 @@ function showCommit(repo, id, file, callback) {
 
   if (file) id += ':' + file;
 
-  var ps = spawn('sh', ['-c', 'git show ' + quote(id) + ' --color=always | less -R'], {
+  var cmd = 'git show '
+    + quote(id)
+    + (p.whitespace ? ' -w' : '')
+    + ' --color=always | less -R';
+
+  var ps = spawn('sh', ['-c', cmd], {
     cwd: repo,
     customFds: [0, 1, 2],
     env: process.env
@@ -212,7 +218,7 @@ function render(opt, callback) {
   var logs = opt.logs
     , branches = opt.branches;
 
-  var p = new Program;
+  p = new Program;
 
   if (!p.output.isTTY) {
     console.log(logs);
@@ -299,6 +305,7 @@ function render(opt, callback) {
 
     if (p._enter) {
       if (key.name === 'enter') {
+        p.hideCursor();
         p.eraseInLine('left');
 
         var enter = p._enter;
@@ -309,13 +316,18 @@ function render(opt, callback) {
           , cmd = parts[0]
           , val = parts.slice(1).join(' ');
 
+        if (cmd === 'w' || cmd === 'space' || cmd === 'whitespace') {
+          p.whitespace = !p.whitespace;
+          return p.whitespace
+            ? echo('Ignoring whitespace.')
+            : echo('Not ignoring whitespace.');
+        }
+
         if (cmd === 'echo') {
-          p.hideCursor();
           return echo(val);
         }
 
         if (cmd === 'branch') {
-          p.hideCursor();
           return echo(branches.names.join(', '));
         }
 
