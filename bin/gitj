@@ -163,6 +163,8 @@ function showCommit(repo, id, file, callback) {
   var cmd = 'git show '
     + quote(id)
     + (p.whitespace ? ' -w' : '')
+    + (p.context ? ' --unified="' + p.context + '"' : '')
+    + (p.patience ? ' --patience' : '')
     + ' --color=always | less -R';
 
   var ps = spawn('sh', ['-c', cmd], {
@@ -321,6 +323,18 @@ function render(opt, callback) {
           return p.whitespace
             ? echo('Ignoring whitespace.')
             : echo('Not ignoring whitespace.');
+        }
+
+        if (cmd === 'c' || cmd === 'context') {
+          p.context = val;
+          return echo(val + ' lines of context.');
+        }
+
+        if (cmd === 'p' || cmd === 'patience') {
+          p.patience = !p.patience;
+          return p.patience
+            ? echo('Patience enabled.')
+            : echo('Patience disabled.');
         }
 
         if (cmd === 'echo') {
