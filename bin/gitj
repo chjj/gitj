@@ -319,105 +319,62 @@ function render(opt, callback) {
 
     if (key.name === 'down' || key.name === 'j') {
       return scroll(1);
-      if (p._index === p.rows - 0 && logs[p.offset + p._index]) {
-        p.offset++;
-        renderList();
-      } else if (p._index < p.rows - 0 && logs[p.offset + p._index]) {
-        p.move(1, p._index);
-        p.fg('red');
-        p.write(logs[p.offset + p._index - 1].short);
-        p.fg('red', false);
-        p._index++;
-        p.move(1, p._index);
-        p.bg('blue');
-        p.write(logs[p.offset + p._index - 1].short);
-        p.bg('blue', false);
-        p.move(1, p._index);
-      }
-      return;
     }
 
     if (key.name === 'up' || key.name === 'k') {
       return scroll(-1);
-      if (p._index === 1 && p.offset > 0) {
-        p.offset--;
-        renderList();
-      } else if (p._index > 1) {
-        p.move(1, p._index);
-        p.fg('red');
-        p.write(logs[p.offset + p._index - 1].short);
-        p.fg('red', false);
-        p._index--;
-        p.move(1, p._index);
-        p.bg('blue');
-        p.write(logs[p.offset + p._index - 1].short);
-        p.bg('blue', false);
-        p.move(1, p._index);
-      }
-      return;
     }
 
     if (key.name === 'd') {
-      var i = p.rows / 2 | 0;
-      scroll(i);
-      return;
+      return scroll(p.rows / 2 | 0);
     }
 
     if (key.name === 'u') {
-      var i = p.rows / 2 | 0;
-      scroll(-i);
-      return;
+      return scroll(-(p.rows / 2 | 0));
     }
 
     if (key.name === 'f') {
-      scroll(p.rows);
-      return;
+      return scroll(p.rows);
     }
 
     if (key.name === 'b') {
-      scroll(-p.rows);
-      return;
+      return scroll(-p.rows);
     }
 
     if (ch === 'H') {
       p._index = 1;
-      renderList();
-      return;
+      return renderList();
     }
 
     if (ch === 'M') {
       p._index = Math.min(p.rows, logs.length) / 2 | 0;
-      renderList();
-      return;
+      return renderList();
     }
 
     if (ch === 'L') {
-      p._index = Math.min(p.rows - 0, logs.length);
-      renderList();
-      return;
+      p._index = Math.min(p.rows, logs.length);
+      return renderList();
     }
 
     if (ch === 'g') {
       p._index = 1;
       p.offset = 0;
-      renderList();
-      return;
+      return renderList();
     }
 
     if (ch === 'G') {
-      if (logs.length > p.rows - 0) {
-        p._index = p.rows - 0;
+      if (logs.length > p.rows) {
+        p._index = p.rows;
         p.offset = logs.length - p._index;
       } else {
         p._index = logs.length - 1 + 1;
         p.offset = 0;
       }
-      renderList();
-      return;
+      return renderList();
     }
 
     if (ch === '/' || ch === '?') {
-      p.move(1, p.rows - 0);
+      p.move(1, p.rows);
       p.eraseInLine('right');
       p.showCursor();
       p.write('Search: ');
@@ -479,7 +436,7 @@ function render(opt, callback) {
     }
 
     if (key.name === 's' || ch === ':') {
-      p.move(1, p.rows - 0);
+      p.move(1, p.rows);
       p.eraseInLine('right');
       p.showCursor();
       p.write(key.name === 's' ? 'Show File: ' : ':');
@@ -492,23 +449,27 @@ function render(opt, callback) {
   }
 
   function scroll(i) {
-    var index = p._index;
-    p._index += i;
-    if (p._index > p.rows - 0) {
+    if (p._index + i > p.rows) {
       // NOTE: Start using insertLines so
       // scrollRegion can be used.
-      var r = p._index - (p.rows - 0);
-      p._index = p.rows - 0;
+      p._index += i;
+      var r = p._index - (p.rows);
+      p._index = p.rows;
       p.offset += r;
       if (!logs[p.offset + p._index - 1]) {
-        p.offset = logs.length - (p.rows - 0);
+        p.offset = logs.length - (p.rows);
       }
-    } else if (p._index < 1) {
+      return renderList();
+    } else if (p._index + i < 1) {
+      p._index += i;
       p.offset += p._index - 1;
       if (p.offset < 0) p.offset = 0;
       p._index = 1;
+      return renderList();
     } else {
-      p._index -= i; // shouldnt be necessary - refactor
+      if (p.offset + (p._index - 1) + i > (logs.length - 1)) {
+        i = (logs.length - 1) - (p.offset + (p._index - 1));
+      }
       p.move(1, p._index);
       p.fg('red');
       p.write(logs[p.offset + p._index - 1].short);
@@ -521,32 +482,30 @@ function render(opt, callback) {
       p.move(1, p._index);
       return;
     }
-    renderList();
   }
 
   function renderList(from) {
     from = from || 1;
     p.move(1, from);
 
-    var visible = logs.slice(p.offset + (from - 1), p.offset + p.rows - 0);
+    var visible = logs.slice(p.offset + (from - 1), p.offset + p.rows);
 
     visible.forEach(function(log, i) {
-      i += from - 1;
-
       var date = new Date(log.authorDate)
-        , msg = clean(log.message);
+        , msg = clean(log.message)
+        , j = i + (from - 1);
 
       date = date.toISOString().split('T')[0];
       msg = msg.slice(0, p.cols - 17 - date.length - log.authorEmail.length);
 
       // commit id
-      if (i === p._index - 1) {
+      if (j === p._index - 1) {
         p.bg('blue');
       } else {
         p.fg('red');
       }
       p.write(log.short);
-      if (i === p._index - 1) {
+      if (j === p._index - 1) {
         p.bg('blue', false);
       } else {
         p.fg('red', false);
@@ -570,7 +529,7 @@ function render(opt, callback) {
 
       p.eraseInLine('right');
 
-      if (i !== visible.length + (from - 1) - 1) {
+      if (i !== visible.length - 1) {
         p.feed();
       }
     });
@@ -581,8 +540,8 @@ function render(opt, callback) {
   p.on('keypress', onkey);
 
   p.on('resize', function() {
-    if (p._index > p.rows - 0) {
-      p._index = p.rows - 0;
+    if (p._index > p.rows) {
+      p._index = p.rows;
     }
     renderList();
   });
