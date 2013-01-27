@@ -1,0 +1,15 @@
+{
+  "name": "gitj",
+  "description": "A TUI version of gitk",
+  "author": "Christopher Jeffrey",
+  "version": "0.0.1",
+  "main": "./bin/gitj",
+  "bin": "./bin/gitj",
+  "man": "./man/gitj.1",
+  "preferGlobal": true,
+  "repository": "git://github.com/chjj/gitj.git",
+  "homepage": "https://github.com/chjj/gitj",
+  "bugs": { "url": "http://github.com/chjj/gitj/issues" },
+  "keywords": ["git", "gitk"],
+  "tags": ["git", "gitk"]
+}

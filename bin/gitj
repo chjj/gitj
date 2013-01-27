@@ -1,0 +1,719 @@
+#!/usr/bin/env node
+
+/**
+ * gitj
+ */
+
+// TODO:
+// Allow selection multiple commits and diffing them.
+// Allow selecting from one commit to another and diffing.
+
+var spawn = require('child_process').spawn
+  , path = require('path')
+  , fs = require('fs');
+
+var Program = require('blessed');
+
+function parseLogs(text) {
+  return text
+    .replace(/[ \t]+$/gm, '')
+    .split(/(?=^commit [a-f0-9]{40})/m)
+    .map(function(log) {
+      log = log.trim();
+      if (!log) return null;
+
+      log = {
+        id: /^commit ([a-f0-9]{40})\n/.exec(log)[1],
+        author: /\nAuthor:\s+([^\n]+)/.exec(log)[1].trim(),
+        authorDate: /\nAuthorDate:\s+([^\n]+)/.exec(log)[1].trim(),
+        committer: /\nCommit:\s+([^\n]+)/.exec(log)[1].trim(),
+        commitDate: /\nCommitDate:\s+([^\n]+)/.exec(log)[1].trim(),
+        message: log.split('\n\n').slice(1).join('\n\n').trim()
+      };
+
+      log.short = log.id.slice(0, 7);
+      log.committerName = log.committer.split(' <')[0];
+      log.committerEmail = (log.committer.split(' <')[1] || '').slice(0, -1);
+      log.authorName = log.author.split(' <')[0];
+      log.authorEmail = (log.author.split(' <')[1] || '').slice(0, -1);
+
+      return log;
+    })
+    .filter(Boolean);
+}
+
+function getLogs(repo, branch, callback) {
+  var buff = '';
+
+  if (!callback) {
+    callback = branch;
+    branch = null;
+  }
+
+  var args = ['log', '--format=fuller'];
+
+  if (branch) args.push(branch);
+
+  var ps = spawn('git', args, {
+    cwd: repo,
+    stdio: ['ignore', 'pipe', 'ignore'],
+    env: process.env
+  });
+
+  ps.stdout.setEncoding('utf8');
+
+  ps.stdout.on('data', function(data) {
+    buff += data;
+  });
+
+  ps.stdout.on('error', callback);
+  ps.on('error', callback);
+
+  ps.on('exit', function(code) {
+    return code !== 0
+      ? callback(new Error('Exit code: ' + code))
+      : callback(null, parseLogs(buff));
+  });
+
+  return ps;
+}
+
+function parseBranches(data) {
+  var current;
+  data = data.trim().split(/\n+/).map(function(name) {
+    name = name.trim();
+    var sel = name[0] === '*';
+    if (sel) {
+      name = name.replace(/^\*\s*/, '');
+      current = name;
+    }
+    return name;
+  });
+  return {
+    current: current,
+    names: data
+  };
+}
+
+function getBranches(repo, callback) {
+  var buff = '';
+
+  var ps = spawn('git', ['branch'], {
+    cwd: repo,
+    stdio: ['ignore', 'pipe', 'ignore'],
+    env: process.env
+  });
+
+  ps.stdout.setEncoding('utf8');
+
+  ps.stdout.on('data', function(data) {
+    buff += data;
+  });
+
+  ps.stdout.on('error', callback);
+  ps.on('error', callback);
+
+  ps.on('exit', function(code) {
+    return code !== 0
+      ? callback(new Error('Exit code: ' + code))
+      : callback(null, parseBranches(buff));
+  });
+
+  return ps;
+}
+
+function showCommit(repo, id, file, callback) {
+  if (!callback) {
+    callback = file;
+    file = null;
+  }
+
+  if (file) id += ':' + file;
+
+  var ps = spawn('sh', ['-c', 'git show ' + quote(id) + ' --color=always | less -R'], {
+    cwd: repo,
+    customFds: [0, 1, 2],
+    env: process.env
+  });
+
+  ps.on('exit', function(code) {
+    return code !== 0
+      ? callback(new Error('Exit code: ' + code))
+      : callback();
+  });
+
+  return ps;
+}
+
+function editCommit(repo, id, callback) {
+  var ps = spawn('git', ['rebase', '-i', id], {
+    cwd: repo,
+    customFds: [0, 1, 2],
+    env: process.env
+  });
+
+  ps.on('exit', function(code) {
+    return code !== 0
+      ? callback(new Error('Exit code: ' + code))
+      : callback();
+  });
+
+  return ps;
+}
+
+function quote(text) {
+  text = text
+    .replace(/([\\"$])/g, '\\$1')
+    .replace(/\r/g, '')
+    .replace(/\n/g, '\\n');
+
+  return '"' +  text + '"';
+}
+
+function clean(text) {
+  return /^([^\r\n]*)/.exec(text)[1].trim().replace(/\x1b+/g, ' ');
+}
+
+function render(opt, callback) {
+  var logs = opt.logs
+    , branches = opt.branches;
+
+  var p = new Program;
+
+  if (!p.output.isTTY) {
+    console.log(logs);
+    return process.exit(0);
+  }
+
+  p.offset = 0;
+  p._index = 1;
+
+  p.alternateBuffer();
+
+  function onkey(ch, key) {
+    if (p._search) {
+      if (key.name === 'enter') {
+        p.eraseInLine('left');
+        var search = p._search;
+        delete p._search;
+        p._lastSearch = search;
+
+        var matcher = /^[0-9a-f]{7,}$/.test(search.data)
+          ? function(log) { return log.id.indexOf(search.data) === 0; }
+          : function(log) {
+            return ~log.message.toLowerCase().indexOf(search.data.toLowerCase());
+          }
+
+        search.logs = !search.reverse
+          ? logs.slice(p.offset + p._index - 1 + 1)
+          : logs.slice(0, p.offset + p._index - 1)
+
+        if (search.reverse) {
+          var i = search.logs.length;
+          while (i--) {
+            var log = search.logs[i];
+            if (matcher(log)) {
+              p.offset = i;
+              p._index = 1;
+              break;
+            }
+          }
+        } else {
+          for (var i = 0; i < search.logs.length; i++) {
+            var log = search.logs[i];
+            if (matcher(log)) {
+              p.offset += p._index + i;
+              p._index = 1;
+              break;
+            }
+          }
+        }
+        p.hideCursor();
+        return renderList();
+      }
+      if (key.name === 'backspace') {
+        if (!p._search.data.length) {
+          p.eraseInLine('left');
+          return onkey(null, {name:'escape'});
+        }
+        p._search.data = p._search.data.slice(0, -1);
+        p.back();
+        p.deleteChars();
+        return;
+      }
+      if (key.name === 'escape') {
+        p._search.canceled = true;
+        p._lastSearch = p._search;
+        delete p._search;
+        p.hideCursor();
+        p.eraseInLine('left');
+        return renderList();
+      }
+      if (ch) {
+        p._search.data += ch;
+        return p.write(ch);
+      }
+      return;
+    }
+
+    if (p._enter) {
+      if (key.name === 'enter') {
+        p.eraseInLine('left');
+
+        var enter = p._enter;
+        p._lastEnter = enter;
+        delete p._enter;
+
+        p.clear();
+        p.move(1, 1);
+        p.showCursor();
+        p.input.pause();
+
+        var parts = enter.data.split(' ')
+          , cmd = parts[0]
+          , val = parts.slice(1).join(' ');
+
+        if (cmd === 'show' || cmd === 'file') {
+          return showCommit(opt.repo, enter.id, val, function() {
+            p.input.resume();
+            p.clear();
+            p.hideCursor();
+            renderList();
+          });
+        } else if (cmd === 'checkout' || cmd === 'view') {
+          return getLogs(opt.repo, val, function(err, log) {
+            if (err) return;
+
+            logs = opt.logs = log;
+            p._index = 1;
+            p.offset = 0;
+
+            p.input.resume();
+            p.clear();
+            p.hideCursor();
+            renderList();
+          });
+        }
+      }
+      if (key.name === 'backspace') {
+        if (!p._enter.data.length) {
+          p.eraseInLine('left');
+          return onkey(null, {name:'escape'});
+        }
+        p._enter.data = p._enter.data.slice(0, -1);
+        p.back();
+        p.deleteChars();
+        return;
+      }
+      if (key.name === 'escape') {
+        p._enter.canceled = true;
+        p._lastEnter = p._enter;
+        delete p._enter;
+        p.hideCursor();
+        p.eraseInLine('left');
+        return renderList();
+      }
+      if (ch) {
+        p._enter.data += ch;
+        p.write(ch);
+        return;
+      }
+      return;
+    }
+
+    if (key.name === 'down' || key.name === 'j') {
+      return scroll(1);
+      if (p._index === p.rows - 0 && logs[p.offset + p._index]) {
+        p.offset++;
+        renderList();
+      } else if (p._index < p.rows - 0 && logs[p.offset + p._index]) {
+        p.move(1, p._index);
+        p.fg('red');
+        p.write(logs[p.offset + p._index - 1].short);
+        p.fg('red', false);
+        p._index++;
+        p.move(1, p._index);
+        p.bg('blue');
+        p.write(logs[p.offset + p._index - 1].short);
+        p.bg('blue', false);
+        p.move(1, p._index);
+      }
+      //} else if (p._index < p.rows - 0 && logs[p.offset + p._index]) { p._index++; renderList(); }
+      return;
+    }
+
+    if (key.name === 'up' || key.name === 'k') {
+      return scroll(-1);
+      if (p._index === 1 && p.offset > 0) {
+        p.offset--;
+        renderList();
+      } else if (p._index > 1) {
+        p.move(1, p._index);
+        p.fg('red');
+        p.write(logs[p.offset + p._index - 1].short);
+        p.fg('red', false);
+        p._index--;
+        p.move(1, p._index);
+        p.bg('blue');
+        p.write(logs[p.offset + p._index - 1].short);
+        p.bg('blue', false);
+        p.move(1, p._index);
+      }
+      //} else if (p._index > 1) { p._index--; renderList(); }
+      return;
+    }
+
+    if (key.name === 'd') {
+      var i = p.rows / 2 | 0;
+      //while (i--) onkey(null, {name:'j'});
+      scroll(i);
+      return;
+    }
+
+    if (key.name === 'u') {
+      var i = p.rows / 2 | 0;
+      //while (i--) onkey(null, {name:'k'});
+      scroll(-i);
+      return;
+    }
+
+    if (key.name === 'f') {
+      //var i = 2;
+      //while (i--) onkey(null, {name:'d'});
+      scroll(p.rows);
+      return;
+    }
+
+    if (key.name === 'b') {
+      //var i = 2;
+      //while (i--) onkey(null, {name:'u'});
+      scroll(-p.rows);
+      return;
+    }
+
+    if (ch === 'H') {
+      p._index = 1;
+      renderList();
+      return;
+    }
+
+    if (ch === 'M') {
+      p._index = Math.min(p.rows, logs.length) / 2 | 0;
+      renderList();
+      return;
+    }
+
+    if (ch === 'L') {
+      //p._index = Math.min(p.rows, logs.length + 1) - 1;
+      p._index = Math.min(p.rows - 0, logs.length);
+      renderList();
+      return;
+    }
+
+    if (ch === 'g') {
+      p._index = 1;
+      p.offset = 0;
+      renderList();
+      return;
+    }
+
+    if (ch === 'G') {
+      if (logs.length > p.rows - 0) {
+        p._index = p.rows - 0;
+        p.offset = logs.length - p._index;
+      } else {
+        p._index = logs.length - 1 + 1;
+        p.offset = 0;
+      }
+      renderList();
+      return;
+    }
+
+    if (ch === '/' || ch === '?') {
+      p.move(1, p.rows - 0);
+      p.eraseInLine('right');
+      p.showCursor();
+      p.write('Search: ');
+      p._search = {
+        data: '',
+        reverse: ch === '?'
+      };
+      return;
+    }
+
+    if (ch === 'n' && p._lastSearch) {
+      p._search = p._lastSearch;
+      p._search.reverse = false;
+      onkey(null, {name:'enter'});
+      return;
+    }
+
+    if (ch === 'N' && p._lastSearch) {
+      p._search = p._lastSearch;
+      p._search.reverse = true;
+      onkey(null, {name:'enter'});
+      return;
+    }
+
+    if ((key.ctrl && key.name === 'c') || key.name === 'q') {
+      p.clear();
+      p.showCursor();
+      p.normalBuffer();
+      return process.exit(0);
+    }
+
+    if (key.name === 'right' || key.name === 'l' || key.name === 'enter') {
+      p.clear();
+      p.move(1, 1);
+      p.showCursor();
+      p.input.pause();
+      return showCommit(opt.repo, logs[p.offset + p._index - 1].id, function() {
+        p.input.resume();
+        p.clear();
+        p.hideCursor();
+        renderList();
+      });
+    }
+
+    if (key.name === 'e') {
+      return;
+      var parent = logs[p.offset + (p._index - 1) + 1];
+      if (!parent) return;
+      p.clear();
+      p.move(1, 1);
+      p.showCursor();
+      p.input.pause();
+      return editCommit(opt.repo, parent.id, function() {
+        p.input.resume();
+        p.clear();
+        p.hideCursor();
+        renderList();
+      });
+    }
+
+    if (key.name === 's' || ch === ':') {
+      p.move(1, p.rows - 0);
+      p.eraseInLine('right');
+      p.showCursor();
+      p.write(key.name === 's' ? 'Show File: ' : ':');
+      p._enter = {
+        id: logs[p.offset + p._index - 1].id,
+        data: key.name === 's' ? 'show ' : ''
+      };
+      return;
+    }
+  }
+
+  function scroll(i) {
+    var index = p._index;
+    p._index += i;
+    if (p._index > p.rows - 0) {
+      // if (i === 1) {
+      //   // proof of concept
+      //   // should probably use this method everywhere,
+      //   // so scroll regions can be used for a status bar.
+      //   p.fg('red');
+      //   p.write(logs[p.offset + index - 1].short);
+      //   p.fg('red', false);
+      //   p.index();
+      //   p.return();
+      //   p.insertLines(i);
+      //   p.bg('blue');
+      //   p.write(logs[p.offset + p._index - 1].short);
+      //   p.bg('blue', false);
+      //   return;
+      // }
+      var r = p._index - (p.rows - 0);
+      p._index = p.rows - 0;
+      p.offset += r;
+      if (!logs[p.offset + p._index - 1]) {
+        p.offset = logs.length - (p.rows - 0);
+      }
+    } else if (p._index < 1) {
+      p.offset += p._index;
+      if (p.offset < 0) p.offset = 0;
+      p._index = 1;
+    } else {
+      p._index -= i; // shouldnt be necessary - refactor
+      p.move(1, p._index);
+      p.fg('red');
+      p.write(logs[p.offset + p._index - 1].short);
+      p.fg('red', false);
+      p._index += i;
+      p.move(1, p._index);
+      p.bg('blue');
+      p.write(logs[p.offset + p._index - 1].short);
+      p.bg('blue', false);
+      p.move(1, p._index);
+      return;
+      // OR:
+      //return renderList(Math.min(index, p._index));
+    }
+    renderList();
+  }
+
+  function renderList(from) {
+    from = from || 1;
+    p.move(1, from);
+
+    //var visible = logs.slice(p.offset, p.offset + p.rows - 0);
+    var visible = logs.slice(p.offset + (from - 1), p.offset + p.rows - 0);
+
+    visible.forEach(function(log, i) {
+      //if (i < from - 1) return;
+      i += from - 1;
+
+      var date = new Date(log.authorDate)
+        , msg = clean(log.message);
+
+      date = date.toISOString().split('T')[0];
+      msg = msg.slice(0, p.cols - 17 - date.length - log.authorEmail.length);
+
+      // commit id
+      if (i === p._index - 1) {
+        p.bg('blue');
+      } else {
+        p.fg('red');
+      }
+      p.write(log.short);
+      if (i === p._index - 1) {
+        p.bg('blue', false);
+      } else {
+        p.fg('red', false);
+      }
+
+      // separator
+      p.write(' │ ');
+
+      // message
+      p.write(msg);
+
+      // date
+      p.fg('green');
+      p.write(' (' + date + ')');
+      p.fg('green', false);
+
+      // email
+      p.fg('blue');
+      p.write(' <' + log.authorEmail + '>');
+      p.fg('blue', false);
+
+      p.eraseInLine('right');
+
+      if (i !== visible.length + (from - 1) - 1) {
+        p.feed();
+
+        //p.charPosAbsolute(1);
+
+        //p.return();
+        //p.index();
+      }
+    });
+
+    p.move(1, p._index);
+  }
+
+  p.on('keypress', onkey);
+
+  p.on('resize', function() {
+    if (p._index > p.rows - 0) {
+      p._index = p.rows - 0;
+    }
+    renderList();
+  });
+
+  p.clear();
+  p.hideCursor();
+  renderList();
+}
+
+function parseArg(argv) {
+  var argv = argv.slice(2)
+    , options = {}
+    , files = [];
+
+  function getarg() {
+    var arg = argv.shift();
+
+    if (arg.indexOf('--') === 0) {
+      // e.g. --opt
+      arg = arg.split('=');
+      if (arg.length > 1) {
+        // e.g. --opt=val
+        argv.unshift(arg.slice(1).join('='));
+      }
+      arg = arg[0];
+    } else if (arg[0] === '-') {
+      if (arg.length > 2) {
+        // e.g. -abc
+        argv = arg.substring(1).split('').map(function(ch) {
+          return '-' + ch;
+        }).concat(argv);
+        arg = argv.shift();
+      } else {
+        // e.g. -a
+      }
+    } else {
+      // e.g. foo
+    }
+
+    return arg;
+  }
+
+  while (argv.length) {
+    arg = getarg();
+    switch (arg) {
+      case '-r':
+      case '--repo':
+        options.repo = argv.shift();
+        break;
+      case '-h':
+      case '--help':
+        return help();
+      default:
+        if (!options.repo
+            && fs.existsSync(arg)
+            && fs.statSync(arg).isDirectory()) {
+          options.repo = arg;
+        } else {
+          files.push(arg);
+        }
+        break;
+    }
+  }
+
+  return options;
+}
+
+function help() {
+  console.log('todo');
+  return process.exit(0);
+}
+
+function main(argv, callback) {
+  var opt = parseArg(argv);
+
+  opt.repo = path.resolve(process.cwd(), opt.repo || '.');
+
+  return getLogs(opt.repo, function(err, logs) {
+    if (err) return callback(err);
+    return getBranches(opt.repo, function(err, branches) {
+      if (err) return callback(err);
+      opt.logs = logs;
+      opt.branches = branches;
+      return render(opt, function(err) {
+        if (err) return callback(err);
+        return callback();
+      });
+    });
+  });
+}
+
+if (!module.parent) {
+  main(process.argv.slice(), function(err) {
+    if (err) throw err;
+    return process.exit(0);
+  });
+} else {
+  module.exports = main;
+}
