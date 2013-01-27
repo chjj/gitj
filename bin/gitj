@@ -320,6 +320,18 @@ function render(opt, callback) {
         p.showCursor();
         p.input.pause();
 
+        if (cmd === 'cd') {
+          opt.repo = path.resolve(opt.repo, val);
+          return getLogs(opt.repo, function(err, log) {
+            if (err) return;
+            logs = opt.logs = log;
+            p.input.resume();
+            p.clear();
+            p.hideCursor();
+            renderList();
+          });
+        }
+
         if (cmd === 'show' || cmd === 'file') {
           return showCommit(opt.repo, enter.id, val, function() {
             p.input.resume();
