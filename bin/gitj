@@ -307,6 +307,10 @@ function render(opt, callback) {
           return echo(branches.names.join(', '));
         }
 
+        if (cmd === 'e') {
+          return onkey('E', { name: 'e', shift: true });
+        }
+
         if (cmd === 'q') {
           return exit();
         }
@@ -469,8 +473,7 @@ function render(opt, callback) {
       });
     }
 
-    if (key.name === 'e') {
-      return;
+    if (ch === 'E') {
       var parent = logs[p.offset + (p._index - 1) + 1];
       if (!parent) return;
       p.clear();
