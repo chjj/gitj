@@ -1,6 +1,6 @@
 {
   "name": "gitj",
-  "description": "A TUI version of gitk",
+  "description": "gitk in your terminal",
   "author": "Christopher Jeffrey",
   "version": "0.0.1",
   "main": "./bin/gitj",
