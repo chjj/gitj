@@ -225,6 +225,13 @@ function render(opt, callback) {
   p.alternateBuffer();
 
   function onkey(ch, key) {
+    if (p._needsClear) {
+      p._needsClear = false;
+      p.move(1, p.rows);
+      p.eraseInLine('right');
+      renderList();
+    }
+
     if (p._search) {
       if (key.name === 'enter') {
         p.eraseInLine('left');
@@ -298,14 +305,28 @@ function render(opt, callback) {
         p._lastEnter = enter;
         delete p._enter;
 
+        var parts = enter.data.split(' ')
+          , cmd = parts[0]
+          , val = parts.slice(1).join(' ');
+
+        if (cmd === 'echo') {
+          p.hideCursor();
+          return echo(val);
+        }
+
+        if (cmd === 'branch') {
+          p.hideCursor();
+          return echo(branches.names.join(', '));
+        }
+
+        if (cmd === 'q') {
+          return exit();
+        }
+
         p.clear();
         p.move(1, 1);
         p.showCursor();
         p.input.pause();
-
-        var parts = enter.data.split(' ')
-          , cmd = parts[0]
-          , val = parts.slice(1).join(' ');
 
         if (cmd === 'show' || cmd === 'file') {
           return showCommit(opt.repo, enter.id, val, function() {
@@ -444,10 +465,7 @@ function render(opt, callback) {
     }
 
     if ((key.ctrl && key.name === 'c') || key.name === 'q') {
-      p.clear();
-      p.showCursor();
-      p.normalBuffer();
-      return process.exit(0);
+      return exit();
     }
 
     if (key.name === 'right' || key.name === 'l' || key.name === 'enter') {
@@ -490,6 +508,20 @@ function render(opt, callback) {
       };
       return;
     }
+  }
+
+  function echo(text) {
+    p.move(1, p.rows);
+    p.eraseInLine('right');
+    p.echo(text);
+    p._needsClear = true;
+  }
+
+  function exit() {
+    p.clear();
+    p.showCursor();
+    p.normalBuffer();
+    return process.exit(0);
   }
 
   function scroll(i) {
