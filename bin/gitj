@@ -4,7 +4,9 @@
  * gitj
  */
 
-var spawn = require('child_process').spawn
+var child_process = require('child_process')
+  , spawn = child_process.spawn
+  , exec = child_process.execFile
   , path = require('path')
   , fs = require('fs');
 
@@ -39,8 +41,6 @@ function parseLogs(text) {
 }
 
 function getLogs(repo, branch, callback) {
-  var buff = '';
-
   if (!callback) {
     callback = branch;
     branch = null;
@@ -49,6 +49,19 @@ function getLogs(repo, branch, callback) {
   var args = ['log', '--format=fuller'];
 
   if (branch) args.push(branch);
+
+  return exec('git', args, {
+    cwd: repo,
+    stdio: ['ignore', 'pipe', 'ignore'],
+    env: process.env,
+    maxBuffer: Infinity
+  }, function(err, stdout, stderr) {
+    if (err) return callback(err);
+    if (stderr) return callback(new Error(stderr));
+    return callback(null, parseLogs(stdout));
+  });
+
+  var buff = '';
 
   var ps = spawn('git', args, {
     cwd: repo,
@@ -66,9 +79,14 @@ function getLogs(repo, branch, callback) {
   ps.on('error', callback);
 
   ps.on('exit', function(code) {
-    return code !== 0
-      ? callback(new Error('Exit code: ' + code))
-      : callback(null, parseLogs(buff));
+    if (code !== 0) {
+      callback(new Error('Exit code: ' + code))
+      callback = function() {};
+    }
+  });
+
+  ps.on('close', function() {
+    return callback(null, parseLogs(buff));
   });
 
   return ps;
@@ -92,6 +110,16 @@ function parseBranches(data) {
 }
 
 function getBranches(repo, callback) {
+  return exec('git', ['branch'], {
+    cwd: repo,
+    stdio: ['ignore', 'pipe', 'ignore'],
+    env: process.env
+  }, function(err, stdout, stderr) {
+    if (err) return callback(err);
+    if (stderr) return callback(new Error(stderr));
+    return callback(null, parseBranches(stdout));
+  });
+
   var buff = '';
 
   var ps = spawn('git', ['branch'], {
@@ -110,9 +138,14 @@ function getBranches(repo, callback) {
   ps.on('error', callback);
 
   ps.on('exit', function(code) {
-    return code !== 0
-      ? callback(new Error('Exit code: ' + code))
-      : callback(null, parseBranches(buff));
+    if (code !== 0) {
+      callback(new Error('Exit code: ' + code))
+      callback = function() {};
+    }
+  });
+
+  ps.on('close', function() {
+    return callback(null, parseBranches(buff));
   });
 
   return ps;
@@ -133,9 +166,14 @@ function showCommit(repo, id, file, callback) {
   });
 
   ps.on('exit', function(code) {
-    return code !== 0
-      ? callback(new Error('Exit code: ' + code))
-      : callback();
+    if (code !== 0) {
+      callback(new Error('Exit code: ' + code))
+      callback = function() {};
+    }
+  });
+
+  ps.on('close', function() {
+    return callback();
   });
 
   return ps;
