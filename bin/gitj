@@ -4,10 +4,6 @@
  * gitj
  */
 
-// TODO:
-// Allow selection multiple commits and diffing them.
-// Allow selecting from one commit to another and diffing.
-
 var spawn = require('child_process').spawn
   , path = require('path')
   , fs = require('fs');
@@ -338,7 +334,6 @@ function render(opt, callback) {
         p.bg('blue', false);
         p.move(1, p._index);
       }
-      //} else if (p._index < p.rows - 0 && logs[p.offset + p._index]) { p._index++; renderList(); }
       return;
     }
 
@@ -359,34 +354,27 @@ function render(opt, callback) {
         p.bg('blue', false);
         p.move(1, p._index);
       }
-      //} else if (p._index > 1) { p._index--; renderList(); }
       return;
     }
 
     if (key.name === 'd') {
       var i = p.rows / 2 | 0;
-      //while (i--) onkey(null, {name:'j'});
       scroll(i);
       return;
     }
 
     if (key.name === 'u') {
       var i = p.rows / 2 | 0;
-      //while (i--) onkey(null, {name:'k'});
       scroll(-i);
       return;
     }
 
     if (key.name === 'f') {
-      //var i = 2;
-      //while (i--) onkey(null, {name:'d'});
       scroll(p.rows);
       return;
     }
 
     if (key.name === 'b') {
-      //var i = 2;
-      //while (i--) onkey(null, {name:'u'});
       scroll(-p.rows);
       return;
     }
@@ -404,7 +392,6 @@ function render(opt, callback) {
     }
 
     if (ch === 'L') {
-      //p._index = Math.min(p.rows, logs.length + 1) - 1;
       p._index = Math.min(p.rows - 0, logs.length);
       renderList();
       return;
@@ -508,21 +495,8 @@ function render(opt, callback) {
     var index = p._index;
     p._index += i;
     if (p._index > p.rows - 0) {
-      // if (i === 1) {
-      //   // proof of concept
-      //   // should probably use this method everywhere,
-      //   // so scroll regions can be used for a status bar.
-      //   p.fg('red');
-      //   p.write(logs[p.offset + index - 1].short);
-      //   p.fg('red', false);
-      //   p.index();
-      //   p.return();
-      //   p.insertLines(i);
-      //   p.bg('blue');
-      //   p.write(logs[p.offset + p._index - 1].short);
-      //   p.bg('blue', false);
-      //   return;
-      // }
+      // NOTE: Start using insertLines so
+      // scrollRegion can be used.
       var r = p._index - (p.rows - 0);
       p._index = p.rows - 0;
       p.offset += r;
@@ -530,7 +504,7 @@ function render(opt, callback) {
         p.offset = logs.length - (p.rows - 0);
       }
     } else if (p._index < 1) {
-      p.offset += p._index;
+      p.offset += p._index - 1;
       if (p.offset < 0) p.offset = 0;
       p._index = 1;
     } else {
@@ -546,8 +520,6 @@ function render(opt, callback) {
       p.bg('blue', false);
       p.move(1, p._index);
       return;
-      // OR:
-      //return renderList(Math.min(index, p._index));
     }
     renderList();
   }
@@ -556,11 +528,9 @@ function render(opt, callback) {
     from = from || 1;
     p.move(1, from);
 
-    //var visible = logs.slice(p.offset, p.offset + p.rows - 0);
     var visible = logs.slice(p.offset + (from - 1), p.offset + p.rows - 0);
 
     visible.forEach(function(log, i) {
-      //if (i < from - 1) return;
       i += from - 1;
 
       var date = new Date(log.authorDate)
@@ -602,11 +572,6 @@ function render(opt, callback) {
 
       if (i !== visible.length + (from - 1) - 1) {
         p.feed();
-
-        //p.charPosAbsolute(1);
-
-        //p.return();
-        //p.index();
       }
     });
 
