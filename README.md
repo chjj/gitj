@@ -2,6 +2,8 @@
 
 `gitk` in your terminal. Similar to `tig`.
 
+![](http://i.imgur.com/l5SYM3G.png)
+
 The code is slightly messy right now.
 
 ## Example Usage

@@ -2,7 +2,7 @@
   "name": "gitj",
   "description": "gitk in your terminal",
   "author": "Christopher Jeffrey",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "./bin/gitj",
   "bin": "./bin/gitj",
   "man": "./man/gitj.1",
@@ -11,5 +11,8 @@
   "homepage": "https://github.com/chjj/gitj",
   "bugs": { "url": "http://github.com/chjj/gitj/issues" },
   "keywords": ["git", "gitk"],
-  "tags": ["git", "gitk"]
+  "tags": ["git", "gitk"],
+  "dependencies": {
+    "blessed": "0.0.1"
+  }
 }
