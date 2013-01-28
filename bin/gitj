@@ -191,6 +191,7 @@ function render(opt, callback) {
 
   p.offset = 0;
   p._index = 1;
+  p.statusbar = 0;
 
   p.alternateBuffer();
 
@@ -303,6 +304,11 @@ function render(opt, callback) {
           return echo(val);
         }
 
+        if (cmd === 'status') {
+          p.statusbar = p.statusbar ? 0 : 1;
+          return updateStatusbar();
+        }
+
         if (cmd === 'branch') {
           return echo(branches.names.join(', '));
         }
@@ -395,19 +401,19 @@ function render(opt, callback) {
     }
 
     if (key.name === 'd') {
-      return scroll(p.rows / 2 | 0);
+      return scroll((p.rows - p.statusbar) / 2 | 0);
     }
 
     if (key.name === 'u') {
-      return scroll(-(p.rows / 2 | 0));
+      return scroll(-((p.rows - p.statusbar) / 2 | 0));
     }
 
     if (key.name === 'f') {
-      return scroll(p.rows);
+      return scroll(p.rows - p.statusbar);
     }
 
     if (key.name === 'b') {
-      return scroll(-p.rows);
+      return scroll(-(p.rows - p.statusbar));
     }
 
     if (ch === 'H') {
@@ -416,12 +422,12 @@ function render(opt, callback) {
     }
 
     if (ch === 'M') {
-      p._index = Math.min(p.rows, logs.length) / 2 | 0;
+      p._index = Math.min(p.rows - p.statusbar, logs.length) / 2 | 0;
       return renderList();
     }
 
     if (ch === 'L') {
-      p._index = Math.min(p.rows, logs.length);
+      p._index = Math.min(p.rows - p.statusbar, logs.length);
       return renderList();
     }
 
@@ -432,8 +438,8 @@ function render(opt, callback) {
     }
 
     if (ch === 'G') {
-      if (logs.length > p.rows) {
-        p._index = p.rows;
+      if (logs.length > p.rows - p.statusbar) {
+        p._index = p.rows - p.statusbar;
         p.offset = logs.length - p._index;
       } else {
         p._index = logs.length - 1 + 1;
@@ -528,15 +534,15 @@ function render(opt, callback) {
   }
 
   function scroll(i) {
-    if (p._index + i > p.rows) {
+    if (p._index + i > p.rows - p.statusbar) {
       // NOTE: Start using insertLines so
       // scrollRegion can be used.
       p._index += i;
-      var r = p._index - (p.rows);
-      p._index = p.rows;
+      var r = p._index - (p.rows - p.statusbar);
+      p._index = p.rows - p.statusbar;
       p.offset += r;
       if (!logs[p.offset + p._index - 1]) {
-        p.offset = logs.length - p.rows;
+        p.offset = logs.length - p.rows - p.statusbar;
       }
       return renderList();
     } else if (p._index + i < 1) {
@@ -557,15 +563,33 @@ function render(opt, callback) {
       p.write(' ');
       p.write(logs[p.offset + p._index - 1].short, 'blue bg');
       p.move(1, p._index);
+      updateStatusbar();
       return;
     }
+  }
+
+  function updateStatusbar() {
+    if (!p.statusbar) return;
+
+    var selected = logs[p.offset + p._index - 1]
+      , bar = selected.id + ' - ' + selected.authorDate;
+
+    p.move(1, p.rows);
+    p.bg('black');
+    p.write(bar);
+    p.write(Array(p.cols - bar.length - 1).join(' '));
+
+    // NOTE: insertChars doesn't work on screen.
+    // p.insertChars(p.cols);
+
+    p.bg('!black');
   }
 
   function renderList(from) {
     from = from || 1;
     p.move(1, from);
 
-    var visible = logs.slice(p.offset + (from - 1), p.offset + p.rows);
+    var visible = logs.slice(p.offset + (from - 1), p.offset + p.rows - p.statusbar);
 
     visible.forEach(function(log, i) {
       var date = new Date(log.authorDate)
@@ -604,14 +628,16 @@ function render(opt, callback) {
       }
     });
 
+    updateStatusbar();
+
     p.move(1, p._index);
   }
 
   p.on('keypress', onkey);
 
   p.on('resize', function() {
-    if (p._index > p.rows) {
-      p._index = p.rows;
+    if (p._index > p.rows - p.statusbar) {
+      p._index = p.rows - p.statusbar;
     }
     renderList();
   });
