@@ -194,6 +194,25 @@ function render(opt, callback) {
   p.statusbar = opt.status ? 1 : 0;
 
   p.alternateBuffer();
+  p.enableMouse();
+
+  p.on('mouse', function(key) {
+    if (key.action === 'wheelup') {
+      return onkey(null, { name: 'u' });
+    }
+    if (key.action === 'wheeldown') {
+      return onkey(null, { name: 'd' });
+    }
+    if (key.action === 'mousedown' && key.button === 'left') {
+      if (p.statusbar && key.y === p.rows) {
+        if (p._search) return onkey('\x1b', { name: 'escape' });
+        return onkey('/', { name: 'slash' });
+      }
+      return p._index === key.y
+        ? onkey(null, { name: 'enter' })
+        : scroll(key.y - p._index);
+    }
+  });
 
   function onkey(ch, key) {
     if (p._needsClear) {
@@ -201,6 +220,10 @@ function render(opt, callback) {
       p.move(1, p.rows);
       p.eraseInLine('right');
       renderList();
+    }
+
+    if (key.name === 'mouse') {
+      return;
     }
 
     if (p._search) {
@@ -324,6 +347,7 @@ function render(opt, callback) {
         p.clear();
         p.move(1, 1);
         p.showCursor();
+        p.disableMouse();
         p.input.pause();
 
         if (cmd === 'cd') {
@@ -332,6 +356,7 @@ function render(opt, callback) {
             if (err) return;
             logs = opt.logs = log;
             p.input.resume();
+            p.enableMouse();
             p.clear();
             p.hideCursor();
             renderList();
@@ -341,6 +366,7 @@ function render(opt, callback) {
         if (cmd === 'show' || cmd === 'file') {
           return showCommit(opt.repo, enter.id, val, function() {
             p.input.resume();
+            p.enableMouse();
             p.clear();
             p.hideCursor();
             renderList();
@@ -354,12 +380,14 @@ function render(opt, callback) {
             p.offset = 0;
 
             p.input.resume();
+            p.enableMouse();
             p.clear();
             p.hideCursor();
             renderList();
           });
         } else {
           p.input.resume();
+          p.enableMouse();
           p.clear();
           p.hideCursor();
           renderList();
@@ -417,35 +445,40 @@ function render(opt, callback) {
     }
 
     if (ch === 'H') {
-      p._index = 1;
-      return renderList();
+      //p._index = 1;
+      //return renderList();
+      return scroll(1 - p._index);
     }
 
     if (ch === 'M') {
-      p._index = Math.min(p.rows - p.statusbar, logs.length) / 2 | 0;
-      return renderList();
+      //p._index = Math.min(p.rows - p.statusbar, logs.length) / 2 | 0;
+      //return renderList();
+      return scroll((Math.min(p.rows - p.statusbar, logs.length) / 2 | 0) - p._index);
     }
 
     if (ch === 'L') {
-      p._index = Math.min(p.rows - p.statusbar, logs.length);
-      return renderList();
+      //p._index = Math.min(p.rows - p.statusbar, logs.length);
+      //return renderList();
+      return scroll(Math.min(p.rows - p.statusbar, logs.length) - p._index);
     }
 
     if (ch === 'g') {
-      p._index = 1;
-      p.offset = 0;
-      return renderList();
+      //p._index = 1;
+      //p.offset = 0;
+      //return renderList();
+      return scroll(-Math.max(logs.length, p.rows));
     }
 
     if (ch === 'G') {
-      if (logs.length > p.rows - p.statusbar) {
-        p._index = p.rows - p.statusbar;
-        p.offset = logs.length - p._index;
-      } else {
-        p._index = logs.length - 1 + 1;
-        p.offset = 0;
-      }
-      return renderList();
+      //if (logs.length > p.rows - p.statusbar) {
+      //  p._index = p.rows - p.statusbar;
+      //  p.offset = logs.length - p._index;
+      //} else {
+      //  p._index = logs.length - 1 + 1;
+      //  p.offset = 0;
+      //}
+      //return renderList();
+      return scroll(Math.max(logs.length, p.rows));
     }
 
     if (ch === '/' || ch === '?') {
@@ -482,9 +515,11 @@ function render(opt, callback) {
       p.clear();
       p.move(1, 1);
       p.showCursor();
+      p.disableMouse();
       p.input.pause();
       return showCommit(opt.repo, logs[p.offset + p._index - 1].id, function() {
         p.input.resume();
+        p.enableMouse();
         p.clear();
         p.hideCursor();
         renderList();
@@ -497,9 +532,11 @@ function render(opt, callback) {
       p.clear();
       p.move(1, 1);
       p.showCursor();
+      p.disableMouse();
       p.input.pause();
       return editCommit(opt.repo, parent.id, function() {
         p.input.resume();
+        p.enableMouse();
         p.clear();
         p.hideCursor();
         renderList();
@@ -527,6 +564,7 @@ function render(opt, callback) {
   }
 
   function exit() {
+    p.disableMouse();
     p.clear();
     p.showCursor();
     p.normalBuffer();
@@ -534,6 +572,10 @@ function render(opt, callback) {
   }
 
   function scroll(i) {
+    if (!i) return;
+    if (p._search || p._enter) {
+      onkey('\x1b', { name: 'escape' });
+    }
     if (p._index + i > p.rows - p.statusbar) {
       // NOTE: Start using insertLines so
       // scrollRegion can be used.
