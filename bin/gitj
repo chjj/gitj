@@ -632,6 +632,15 @@ function render(opt, callback) {
       }
     });
 
+    // This is needed for searching and getting
+    // an item at index 1 even when there aren't
+    // enough items to fill the entire screen.
+    var i = from + visible.length - 1;
+    while (i++ < p.rows - p.statusbar) {
+      p.move(1, i);
+      p.eraseInLine('right');
+    }
+
     updateStatusbar();
 
     p.move(1, p._index);
