@@ -543,7 +543,7 @@ function render(opt, callback) {
       p.offset += r;
       if (!logs[p.offset + p._index - 1]) {
         p.offset = Math.max(p.rows, logs.length) - p.rows;
-        if (p.rows < logs.length) {
+        if (p.rows <= logs.length) {
           p.offset += p.statusbar;
         }
         p._index = Math.min(p.rows - p.statusbar, logs.length);
