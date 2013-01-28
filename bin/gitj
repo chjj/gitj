@@ -191,7 +191,7 @@ function render(opt, callback) {
 
   p.offset = 0;
   p._index = 1;
-  p.statusbar = 0;
+  p.statusbar = opt.status ? 1 : 0;
 
   p.alternateBuffer();
 
@@ -690,6 +690,10 @@ function parseArg(argv) {
       case '-r':
       case '--repo':
         options.repo = argv.shift();
+        break;
+      case '-s':
+      case '--status':
+        options.status = true;
         break;
       case '-h':
       case '--help':
