@@ -576,12 +576,21 @@ function render(opt, callback) {
     if (!p.statusbar) return;
 
     var selected = logs[p.offset + p._index - 1]
-      , bar = selected.id + ' - ' + selected.authorDate;
+      , bar;
+
+    bar = selected.id
+      + ' - '
+      + selected.authorDate
+      + ' - ['
+      + branches.current
+      + ']';
+
+    bar = bar.substring(0, p.cols);
 
     p.move(1, p.rows);
     p.bg('black');
     p.write(bar);
-    p.write(Array(p.cols - bar.length - 1).join(' '));
+    p.write(Array(p.cols - bar.length + 1).join(' '));
 
     // NOTE: insertChars doesn't work on screen.
     // p.insertChars(p.cols);
