@@ -551,15 +551,11 @@ function render(opt, callback) {
       }
       p.move(1, p._index);
       p.write(' ');
-      p.fg('red');
-      p.write(logs[p.offset + p._index - 1].short);
-      p.fg('red', false);
+      p.write(logs[p.offset + p._index - 1].short, 'red fg');
       p._index += i;
       p.move(1, p._index);
       p.write(' ');
-      p.bg('blue');
-      p.write(logs[p.offset + p._index - 1].short);
-      p.bg('blue', false);
+      p.write(logs[p.offset + p._index - 1].short, 'blue bg');
       p.move(1, p._index);
       return;
     }
@@ -582,17 +578,7 @@ function render(opt, callback) {
       p.write(' ');
 
       // commit id
-      if (j === p._index - 1) {
-        p.bg('blue');
-      } else {
-        p.fg('red');
-      }
-      p.write(log.short);
-      if (j === p._index - 1) {
-        p.bg('blue', false);
-      } else {
-        p.fg('red', false);
-      }
+      p.write(log.short, j === p._index - 1 ? 'blue bg' : 'red fg');
 
       // separator
       p.write(' │ ');
@@ -606,14 +592,10 @@ function render(opt, callback) {
       p.write(msg);
 
       // date
-      p.fg('green');
-      p.write(' (' + date + ')');
-      p.fg('green', false);
+      p.write(' (' + date + ')', 'green fg');
 
       // email
-      p.fg('blue');
-      p.write(' <' + log.authorEmail + '>');
-      p.fg('blue', false);
+      p.write(' <' + log.authorEmail + '>', 'blue fg');
 
       p.eraseInLine('right');
 
