@@ -156,6 +156,9 @@ function showCommit(repo, id, file, callback) {
     + (p.whitespace ? ' -w' : '')
     + (p.context ? ' --unified="' + p.context + '"' : '')
     + (p.patience ? ' --patience' : '')
+    + ' --patch-with-stat'
+    // + ' --minimal'
+    // + ' --no-ext-diff'
     + ' --color=always | less -R';
 
   var ps = spawn('sh', ['-c', cmd], {
@@ -650,7 +653,9 @@ function render(opt, callback) {
     left = selected.id
       + (selected.authorDate ? ' - ' + selected.authorDate : '')
 
-    right = '['
+    right =
+      (p.offset + p._index) + '/' + logs.length
+      + ' ['
       + branches.current
       + ']'
       + (opt.stash ? ' $' : '')
