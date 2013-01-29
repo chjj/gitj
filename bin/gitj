@@ -145,16 +145,18 @@ function showCommit(repo, id, file, callback) {
 
   if (file) id += ':' + file;
 
-  var cmd = 'git show '
+  var action = id === 'HEAD'
+    ? 'diff'
+    : 'show';
+
+  var cmd = 'git '
+    + action
+    + ' '
     + quote(id)
     + (p.whitespace ? ' -w' : '')
     + (p.context ? ' --unified="' + p.context + '"' : '')
     + (p.patience ? ' --patience' : '')
     + ' --color=always | less -R';
-
-  if (id === 'HEAD') {
-    cmd = cmd.replace('git show "HEAD"', 'git diff HEAD');
-  }
 
   var ps = spawn('sh', ['-c', cmd], {
     cwd: repo,
@@ -814,41 +816,82 @@ function parseArg(argv) {
     }
   }
 
+  options.repo = path.resolve(process.cwd(), options.repo || '.');
+
+  if (options.status == null) {
+    options.status = true;
+  }
+
   return options;
 }
+
+var opt = parseArg(process.argv);
 
 function help() {
   console.log('todo');
   return process.exit(0);
 }
 
-function main(argv, callback) {
-  var opt = parseArg(argv);
+function poll(options, callback) {
+  options = options || {};
+  options.repo = options.repo || opt.repo;
+  callback = callback || function() {};
 
-  opt.repo = path.resolve(process.cwd(), opt.repo || '.');
-
-  if (opt.status == null) {
-    opt.status = true;
+  function getLog(callback) {
+    return options.logs
+      ? getLogs(options.repo, callback)
+      : callback();
   }
 
-  return getLogs(opt.repo, function(err, logs) {
+  return getLog(function(err, logs) {
     if (err) return callback(err);
-    return getBranches(opt.repo, function(err, branches) {
+    return getBranches(options.repo, function(err, branches) {
       if (err) return callback(err);
-      return getDirty(opt.repo, function(err, dirty) {
+      return getDirty(options.repo, function(err, dirty) {
         if (err) return callback(err);
-        return getStash(opt.repo, function(err, stash) {
+        return getStash(options.repo, function(err, stash) {
           if (err) return callback(err);
-          opt.logs = logs;
-          opt.branches = branches;
-          opt.dirty = dirty;
-          opt.stash = stash;
-          return render(opt, function(err) {
-            if (err) return callback(err);
-            return callback();
+
+          if (options.update !== false) {
+            opt.logs = logs || opt.logs;
+            opt.branches = branches;
+            opt.dirty = dirty;
+            opt.stash = stash;
+          }
+
+          return callback(null, {
+            logs: logs || opt.logs,
+            branches: branches,
+            dirty: dirty,
+            stash: stash
           });
         });
       });
+    });
+  });
+}
+
+function beginPoll() {
+  var i = 0;
+  (function self() {
+    var opt = {};
+    if (++i === 6) {
+      opt.logs = true;
+      i = 0;
+    }
+    return poll(function() {
+      return setTimeout(self, 10 * 1000);
+    });
+  })();
+}
+
+function main(argv, callback) {
+  beginPoll();
+  return poll({ logs: true }, function(err) {
+    if (err) return callback(err);
+    return render(opt, function(err) {
+      if (err) return callback(err);
+      return callback();
     });
   });
 }
