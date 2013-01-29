@@ -2,7 +2,7 @@
   "name": "gitj",
   "description": "gitk in your terminal",
   "author": "Christopher Jeffrey",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": "./bin/gitj",
   "bin": "./bin/gitj",
   "man": "./man/gitj.1",
