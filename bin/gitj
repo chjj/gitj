@@ -4,6 +4,8 @@
  * gitj
  */
 
+process.title = 'gitj';
+
 /**
  * Modules
  */
