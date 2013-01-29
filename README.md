@@ -2,7 +2,7 @@
 
 `gitk` in your terminal. Similar to `tig`.
 
-![](http://i.imgur.com/l5SYM3G.png)
+![](http://i.imgur.com/tEH5l0I.png)
 
 The code is slightly messy right now.
 
