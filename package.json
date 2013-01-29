@@ -13,6 +13,6 @@
   "keywords": ["git", "gitk"],
   "tags": ["git", "gitk"],
   "dependencies": {
-    "blessed": "0.0.1"
+    "blessed": "0.0.2"
   }
 }
