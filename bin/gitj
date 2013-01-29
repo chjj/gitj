@@ -80,6 +80,34 @@ function getLogs(repo, branch, callback) {
   });
 }
 
+function getDirty(repo, callback) {
+  var ps = spawn('git', ['diff', '--no-ext-diff', '--quiet', '--exit-code', 'HEAD'], {
+    cwd: repo,
+    stdio: ['ignore', 'ignore', 'ignore'],
+    env: process.env
+  });
+
+  ps.on('exit', function(code) {
+    return callback(null, code !== 0);
+  });
+
+  return ps;
+}
+
+function getStash(repo, callback) {
+  var ps = spawn('git', ['rev-parse', '--verify', 'refs/stash'], {
+    cwd: repo,
+    stdio: ['ignore', 'ignore', 'ignore'],
+    env: process.env
+  });
+
+  ps.on('exit', function(code) {
+    return callback(null, code === 0);
+  });
+
+  return ps;
+}
+
 function parseBranches(data) {
   var current;
   data = data.trim().split(/\n+/).map(function(name) {
@@ -123,6 +151,10 @@ function showCommit(repo, id, file, callback) {
     + (p.context ? ' --unified="' + p.context + '"' : '')
     + (p.patience ? ' --patience' : '')
     + ' --color=always | less -R';
+
+  if (id === 'HEAD') {
+    cmd = cmd.replace('git show "HEAD"', 'git diff HEAD');
+  }
 
   var ps = spawn('sh', ['-c', cmd], {
     cwd: repo,
@@ -181,6 +213,14 @@ function clean(text) {
 function render(opt, callback) {
   var logs = opt.logs
     , branches = opt.branches;
+
+  if (opt.dirty) {
+    logs.unshift({
+      id: 'HEAD',
+      short: 'HEAD   ',
+      message: 'Local uncommitted changes'
+    });
+  }
 
   p = new Program;
 
@@ -376,6 +416,7 @@ function render(opt, callback) {
             if (err) return;
 
             logs = opt.logs = log;
+            branches.current = val;
             p._index = 1;
             p.offset = 0;
 
@@ -445,39 +486,22 @@ function render(opt, callback) {
     }
 
     if (ch === 'H') {
-      //p._index = 1;
-      //return renderList();
       return scroll(1 - p._index);
     }
 
     if (ch === 'M') {
-      //p._index = Math.min(p.rows - p.statusbar, logs.length) / 2 | 0;
-      //return renderList();
       return scroll((Math.min(p.rows - p.statusbar, logs.length) / 2 | 0) - p._index);
     }
 
     if (ch === 'L') {
-      //p._index = Math.min(p.rows - p.statusbar, logs.length);
-      //return renderList();
       return scroll(Math.min(p.rows - p.statusbar, logs.length) - p._index);
     }
 
     if (ch === 'g') {
-      //p._index = 1;
-      //p.offset = 0;
-      //return renderList();
       return scroll(-Math.max(logs.length, p.rows));
     }
 
     if (ch === 'G') {
-      //if (logs.length > p.rows - p.statusbar) {
-      //  p._index = p.rows - p.statusbar;
-      //  p.offset = logs.length - p._index;
-      //} else {
-      //  p._index = logs.length - 1 + 1;
-      //  p.offset = 0;
-      //}
-      //return renderList();
       return scroll(Math.max(logs.length, p.rows));
     }
 
@@ -618,24 +642,31 @@ function render(opt, callback) {
     if (!p.statusbar) return;
 
     var selected = logs[p.offset + p._index - 1]
-      , bar;
+      , left
+      , right;
 
-    bar = selected.id
-      + ' - '
-      + selected.authorDate
-      + ' - ['
+    left = selected.id
+      + (selected.authorDate ? ' - ' + selected.authorDate : '')
+
+    right = '['
       + branches.current
-      + ']';
+      + ']'
+      + (opt.stash ? ' $' : '')
+      + (opt.dirty ? ' *' : '');
 
-    bar = bar.substring(0, p.cols);
+    right = right.substring(0, p.cols);
+    left = left.substring(0, p.cols - right.length);
 
     p.move(1, p.rows);
     p.bg('black');
-    p.write(bar);
-    p.write(Array(p.cols - bar.length + 1).join(' '));
+
+    p.write(left);
 
     // NOTE: insertChars doesn't work on screen.
     // p.insertChars(p.cols);
+    p.write(Array(p.cols - left.length - right.length + 1).join(' '));
+
+    p.write(right, 'cyan fg');
 
     p.bg('!black');
   }
@@ -648,11 +679,16 @@ function render(opt, callback) {
 
     visible.forEach(function(log, i) {
       var date = new Date(log.authorDate)
-        , msg = clean(log.message)
+        , msg = clean(log.message || '')
+        , email = log.authorEmail || ''
+        , refs = log.refs || ''
         , j = i + (from - 1);
 
-      date = date.toISOString().split('T')[0];
-      msg = msg.slice(0, p.cols - 17 - date.length - log.authorEmail.length - log.refs.length - 2);
+      date = date.toString() !== 'Invalid Date'
+        ? date.toISOString().split('T')[0]
+        : '';
+
+      msg = msg.slice(0, p.cols - 17 - date.length - email.length - refs.length - 2);
 
       p.write(' ');
 
@@ -663,18 +699,22 @@ function render(opt, callback) {
       p.write(' │ ');
 
       // refs
-      if (log.refs) {
-        p.write(log.refs + ' ', 'yellow fg');
+      if (refs) {
+        p.write(refs + ' ', 'yellow fg');
       }
 
       // message
       p.write(msg);
 
       // date
-      p.write(' (' + date + ')', 'green fg');
+      if (date) {
+        p.write(' (' + date + ')', 'green fg');
+      }
 
       // email
-      p.write(' <' + log.authorEmail + '>', 'blue fg');
+      if (email) {
+        p.write(' <' + email + '>', 'blue fg');
+      }
 
       p.eraseInLine('right');
 
@@ -755,6 +795,10 @@ function parseArg(argv) {
       case '--status':
         options.status = true;
         break;
+      case '-n':
+      case '--no-status':
+        options.status = false;
+        break;
       case '-h':
       case '--help':
         return help();
@@ -783,15 +827,27 @@ function main(argv, callback) {
 
   opt.repo = path.resolve(process.cwd(), opt.repo || '.');
 
+  if (opt.status == null) {
+    opt.status = true;
+  }
+
   return getLogs(opt.repo, function(err, logs) {
     if (err) return callback(err);
     return getBranches(opt.repo, function(err, branches) {
       if (err) return callback(err);
-      opt.logs = logs;
-      opt.branches = branches;
-      return render(opt, function(err) {
+      return getDirty(opt.repo, function(err, dirty) {
         if (err) return callback(err);
-        return callback();
+        return getStash(opt.repo, function(err, stash) {
+          if (err) return callback(err);
+          opt.logs = logs;
+          opt.branches = branches;
+          opt.dirty = dirty;
+          opt.stash = stash;
+          return render(opt, function(err) {
+            if (err) return callback(err);
+            return callback();
+          });
+        });
       });
     });
   });
