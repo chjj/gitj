@@ -236,6 +236,8 @@ function render(opt, callback) {
     return process.exit(0);
   }
 
+  p.setTitle('gitj');
+
   p.offset = 0;
   p._index = 1;
   p.statusbar = opt.status ? 1 : 0;
