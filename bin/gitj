@@ -893,12 +893,12 @@ function poll(options, callback) {
 function beginPoll() {
   var i = 0;
   (function self() {
-    var opt = {};
+    var options = {};
     if (++i === 6) {
-      opt.logs = true;
+      options.logs = true;
       i = 0;
     }
-    return poll(function() {
+    return poll(options, function() {
       return setTimeout(self, 10 * 1000);
     });
   })();
