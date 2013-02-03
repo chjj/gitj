@@ -156,10 +156,11 @@ function showCommit(repo, id, file, callback) {
     + ' '
     + quote(id)
     + (p.whitespace ? ' -w' : '')
-    + (p.context ? ' --unified="' + p.context + '"' : '')
+    + (p.context ? ' --unified=' + quote(p.context) : '')
     + (p.patience ? ' --patience' : '')
+    + (p.minimal ? ' --minimal' : '')
+    + (p.word ? ' --word-diff=plain' : '')
     + ' --patch-with-stat'
-    // + ' --minimal'
     // + ' --no-ext-diff'
     + ' --color=always | less -R';
 
@@ -205,7 +206,7 @@ function editCommit(repo, id, callback) {
 }
 
 function quote(text) {
-  text = text
+  text = (text + '')
     .replace(/([\\"$])/g, '\\$1')
     .replace(/\r/g, '')
     .replace(/\n/g, '\\n');
@@ -372,6 +373,20 @@ function render(opt, callback) {
             : echo('Patience disabled.');
         }
 
+        if (cmd === 'm' || cmd === 'minimal') {
+          p.minimal = !p.minimal;
+          return p.minimal
+            ? echo('Minimal enabled.')
+            : echo('Minimal disabled.');
+        }
+
+        if (cmd === 'word') {
+          p.word = !p.word;
+          return p.word
+            ? echo('Word diff enabled.')
+            : echo('Word diff disabled.');
+        }
+
         if (cmd === 'echo') {
           return echo(val);
         }
@@ -383,10 +398,6 @@ function render(opt, callback) {
 
         if (cmd === 'branch') {
           return echo(branches.names.join(', '));
-        }
-
-        if (cmd === 'e') {
-          return onkey('E', { name: 'e', shift: true });
         }
 
         if (cmd === 'q') {
@@ -412,6 +423,23 @@ function render(opt, callback) {
           });
         }
 
+        if (cmd === 'e' || cmd === 'edit') {
+          var parent = logs[p.offset + (p._index - 1) + 1];
+          if (!parent) return;
+          p.clear();
+          p.move(1, 1);
+          p.showCursor();
+          p.disableMouse();
+          p.input.pause();
+          return editCommit(opt.repo, parent.id, function() {
+            p.input.resume();
+            p.enableMouse();
+            p.clear();
+            p.hideCursor();
+            renderList();
+          });
+        }
+
         if (cmd === 'show' || cmd === 'file') {
           return showCommit(opt.repo, enter.id, val, function() {
             p.input.resume();
@@ -420,7 +448,9 @@ function render(opt, callback) {
             p.hideCursor();
             renderList();
           });
-        } else if (cmd === 'checkout' || cmd === 'view') {
+        }
+
+        if (cmd === 'checkout' || cmd === 'view') {
           return getLogs(opt.repo, val, function(err, log) {
             if (err) return;
 
@@ -435,14 +465,14 @@ function render(opt, callback) {
             p.hideCursor();
             renderList();
           });
-        } else {
-          p.input.resume();
-          p.enableMouse();
-          p.clear();
-          p.hideCursor();
-          renderList();
-          return;
         }
+
+        p.input.resume();
+        p.enableMouse();
+        p.clear();
+        p.hideCursor();
+        renderList();
+        return;
       }
       if (key.name === 'backspace') {
         if (!p._enter.data.length) {
@@ -551,23 +581,6 @@ function render(opt, callback) {
       p.disableMouse();
       p.input.pause();
       return showCommit(opt.repo, logs[p.offset + p._index - 1].id, function() {
-        p.input.resume();
-        p.enableMouse();
-        p.clear();
-        p.hideCursor();
-        renderList();
-      });
-    }
-
-    if (ch === 'E') {
-      var parent = logs[p.offset + (p._index - 1) + 1];
-      if (!parent) return;
-      p.clear();
-      p.move(1, 1);
-      p.showCursor();
-      p.disableMouse();
-      p.input.pause();
-      return editCommit(opt.repo, parent.id, function() {
         p.input.resume();
         p.enableMouse();
         p.clear();
