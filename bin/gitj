@@ -241,7 +241,7 @@ function render(opt, callback) {
 
   p.offset = 0;
   p._index = 1;
-  p.statusbar = opt.status ? 1 : 0;
+  p.statusbar = opt.status ? 2 : 0;
 
   p.alternateBuffer();
   p.enableMouse();
@@ -392,7 +392,7 @@ function render(opt, callback) {
         }
 
         if (cmd === 'status') {
-          p.statusbar = p.statusbar ? 0 : 1;
+          p.statusbar = p.statusbar ? 0 : 2;
           return updateStatusbar();
         }
 
@@ -663,8 +663,7 @@ function render(opt, callback) {
   function updateStatusbar() {
     if (!p.statusbar) return;
 
-    // Testing
-    p.statusbar = 2;
+    // Draw first line
     var out = Array(9 + 1).join('─');
     out += '┴';
     out += Array(p.cols - 10 + 1).join('─');
@@ -762,7 +761,6 @@ function render(opt, callback) {
     while (i++ < p.rows - p.statusbar) {
       p.move(1, i);
       p.eraseInLine('right');
-      // Testing
       p.write('         │');
     }
 
