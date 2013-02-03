@@ -185,6 +185,8 @@ function showCommit(repo, id, file, callback) {
 }
 
 function editCommit(repo, id, callback) {
+  if (!id) return callback();
+
   var ps = spawn('git', ['rebase', '-i', id], {
     cwd: repo,
     customFds: [0, 1, 2],
@@ -264,6 +266,22 @@ function render(opt, callback) {
     }
   });
 
+  function pause() {
+    p.clear();
+    p.move(1, 1);
+    p.showCursor();
+    p.disableMouse();
+    p.input.pause();
+  }
+
+  function resume() {
+    p.input.resume();
+    p.enableMouse();
+    p.clear();
+    p.hideCursor();
+    renderList();
+  }
+
   function onkey(ch, key) {
     if (p._needsClear) {
       p._needsClear = false;
@@ -316,6 +334,7 @@ function render(opt, callback) {
         p.hideCursor();
         return renderList();
       }
+
       if (key.name === 'backspace') {
         if (!p._search.data.length) {
           p.eraseInLine('left');
@@ -326,6 +345,7 @@ function render(opt, callback) {
         p.deleteChars();
         return;
       }
+
       if (key.name === 'escape') {
         p._search.canceled = true;
         p._lastSearch = p._search;
@@ -334,10 +354,12 @@ function render(opt, callback) {
         p.eraseInLine('left');
         return renderList();
       }
+
       if (ch) {
         p._search.data += ch;
         return p.write(ch);
       }
+
       return;
     }
 
@@ -404,76 +426,48 @@ function render(opt, callback) {
           return exit();
         }
 
-        p.clear();
-        p.move(1, 1);
-        p.showCursor();
-        p.disableMouse();
-        p.input.pause();
-
         if (cmd === 'cd') {
           opt.repo = path.resolve(opt.repo, val);
+          pause();
           return getLogs(opt.repo, function(err, log) {
-            if (err) return;
-            logs = opt.logs = log;
-            p.input.resume();
-            p.enableMouse();
-            p.clear();
-            p.hideCursor();
-            renderList();
+            if (!err) {
+              logs = opt.logs = log;
+            }
+            return resume();
           });
         }
 
         if (cmd === 'e' || cmd === 'edit') {
-          var parent = logs[p.offset + (p._index - 1) + 1];
-          if (!parent) return;
-          p.clear();
-          p.move(1, 1);
-          p.showCursor();
-          p.disableMouse();
-          p.input.pause();
+          var parent = logs[p.offset + (p._index - 1) + 1] || 0;
+          pause();
           return editCommit(opt.repo, parent.id, function() {
-            p.input.resume();
-            p.enableMouse();
-            p.clear();
-            p.hideCursor();
-            renderList();
+            return resume();
           });
         }
 
         if (cmd === 'show' || cmd === 'file') {
+          pause();
           return showCommit(opt.repo, enter.id, val, function() {
-            p.input.resume();
-            p.enableMouse();
-            p.clear();
-            p.hideCursor();
-            renderList();
+            return resume();
           });
         }
 
         if (cmd === 'checkout' || cmd === 'view') {
+          pause();
           return getLogs(opt.repo, val, function(err, log) {
-            if (err) return;
-
-            logs = opt.logs = log;
-            branches.current = val;
-            p._index = 1;
-            p.offset = 0;
-
-            p.input.resume();
-            p.enableMouse();
-            p.clear();
-            p.hideCursor();
-            renderList();
+            if (!err) {
+              logs = opt.logs = log;
+              branches.current = val;
+              p._index = 1;
+              p.offset = 0;
+            }
+            return resume();
           });
         }
 
-        p.input.resume();
-        p.enableMouse();
-        p.clear();
-        p.hideCursor();
-        renderList();
         return;
       }
+
       if (key.name === 'backspace') {
         if (!p._enter.data.length) {
           p.eraseInLine('left');
@@ -484,6 +478,7 @@ function render(opt, callback) {
         p.deleteChars();
         return;
       }
+
       if (key.name === 'escape') {
         p._enter.canceled = true;
         p._lastEnter = p._enter;
@@ -492,11 +487,13 @@ function render(opt, callback) {
         p.eraseInLine('left');
         return renderList();
       }
+
       if (ch) {
         p._enter.data += ch;
         p.write(ch);
         return;
       }
+
       return;
     }
 
