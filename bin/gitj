@@ -616,9 +616,17 @@ function render(opt, callback) {
 
   function scroll(i) {
     if (!i) return;
+
     if (p._search || p._enter) {
       onkey('\x1b', { name: 'escape' });
     }
+
+    if (i > 0) {
+      if (p.offset + p._index === logs.length) return;
+    } else if (i < 0) {
+      if (p.offset + p._index === 1) return;
+    }
+
     if (p._index + i > p.rows - p.statusbar) {
       // NOTE: Start using insertLines so
       // scrollRegion can be used.
@@ -644,12 +652,10 @@ function render(opt, callback) {
       if (p.offset + (p._index - 1) + i > (logs.length - 1)) {
         i = (logs.length - 1) - (p.offset + (p._index - 1));
       }
-      p.move(1, p._index);
-      p.write(' ');
+      p.move(2, p._index);
       p.write(logs[p.offset + p._index - 1].short, 'red fg');
       p._index += i;
-      p.move(1, p._index);
-      p.write(' ');
+      p.move(2, p._index);
       p.write(logs[p.offset + p._index - 1].short, 'blue bg');
       p.move(1, p._index);
       updateStatusbar();
