@@ -161,8 +161,8 @@ function showCommit(repo, id, file, callback) {
     + (p.minimal ? ' --minimal' : '')
     + (p.word ? ' --word-diff=plain' : '')
     + ' --patch-with-stat'
-    // + ' --no-ext-diff'
-    + ' --color=always | less -R';
+    + ' --no-ext-diff'
+    + ' --color=always | less -c -R';
 
   var ps = spawn('sh', ['-c', cmd], {
     cwd: repo,
@@ -272,9 +272,11 @@ function render(opt, callback) {
     p.showCursor();
     p.disableMouse();
     p.input.pause();
+    p.normalBuffer();
   }
 
   function resume() {
+    p.alternateBuffer();
     p.input.resume();
     p.enableMouse();
     p.clear();
