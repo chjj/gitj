@@ -30,6 +30,12 @@ var Program = require('blessed')
   , p;
 
 function parseLogs(text) {
+  function grab(log, regex) {
+    var m = regex.exec(log);
+    if (!m) return '';
+    return m[1].trim();
+  }
+
   return text
     .replace(/[ \t]+$/gm, '')
     .split(/(?=^commit [a-f0-9]{40})/m)
@@ -38,12 +44,12 @@ function parseLogs(text) {
       if (!log) return null;
 
       log = {
-        id: /^commit ([a-f0-9]{40})\n/.exec(log)[1],
-        author: /\nAuthor:[ \t]+([^\n]+)/.exec(log)[1].trim(),
-        authorDate: /\nAuthorDate:[ \t]+([^\n]+)/.exec(log)[1].trim(),
-        committer: /\nCommit:[ \t]+([^\n]+)/.exec(log)[1].trim(),
-        commitDate: /\nCommitDate:[ \t]+([^\n]+)/.exec(log)[1].trim(),
-        refs: /\nRefs:[ \t]*([^\n]*)/.exec(log)[1].trim(),
+        id: grab(log, /^commit ([a-f0-9]{40})\n/),
+        author: grab(log, /\nAuthor:[ \t]+([^\n]+)/),
+        authorDate: grab(log, /\nAuthorDate:[ \t]+([^\n]+)/),
+        committer: grab(log, /\nCommit:[ \t]+([^\n]+)/),
+        commitDate: grab(log, /\nCommitDate:[ \t]+([^\n]+)/),
+        refs: grab(log, /\nRefs:[ \t]*([^\n]*)/),
         message: log.split('\n\n').slice(1).join('\n\n').trim()
       };
 
