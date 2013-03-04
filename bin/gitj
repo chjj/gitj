@@ -21,6 +21,7 @@ var child_process = require('child_process')
  */
 
 var FORMAT = 'format:commit %H%nParents: %P%nAuthor: %an <%ae>%nAuthorDate: %ad%nCommit: %cn <%ce>%nCommitDate: %cd%nRefs:%d%n%n%B%n';
+var SHOWFORMAT = 'format:%C(yellow)commit %H%Creset%nParents: %P%nAuthor: %an <%ae>%nAuthorDate: %ad%nCommit: %cn <%ce>%nCommitDate: %cd%nRefs:%d%n%n%B%n';
 
 /**
  * Program
@@ -35,6 +36,8 @@ function parseLogs(text) {
     if (!m) return '';
     return m[1].trim();
   }
+
+  // text = text.replace(/\x1b\[\d*(;\d*)*m/g, '');
 
   return text
     .replace(/[ \t]+$/gm, '')
@@ -188,7 +191,7 @@ function showCommit(repo, log, file, callback) {
     + (p.patience ? ' --patience' : '')
     + (p.minimal ? ' --minimal' : '')
     + (p.word ? ' --word-diff=plain' : '')
-    + (action === 'show' ? ' --format=fuller' : '')
+    + (action === 'show' ? ' --format="' + SHOWFORMAT + '"' : '')
     + ' --patch-with-stat'
     + ' --no-ext-diff'
     + ' --color=always | less -c -R';
