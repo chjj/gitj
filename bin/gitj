@@ -194,6 +194,7 @@ function showCommit(repo, log, file, callback) {
     + (action === 'show' ? ' --format="' + SHOWFORMAT + '"' : '')
     + ' --patch-with-stat'
     + ' --no-ext-diff'
+    + ' -M90'
     + ' --color=always | less -c -R';
 
   var ps = spawn('sh', ['-c', cmd], {
