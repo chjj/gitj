@@ -20,7 +20,7 @@ var child_process = require('child_process')
  * Log Format
  */
 
-var FORMAT = 'format:commit %H%nAuthor: %an <%ae>%nAuthorDate: %ad%nCommit: %cn <%ce>%nCommitDate: %cd%nRefs:%d%n%n%B%n';
+var FORMAT = 'format:commit %H%nParents: %P%nAuthor: %an <%ae>%nAuthorDate: %ad%nCommit: %cn <%ce>%nCommitDate: %cd%nRefs:%d%n%n%B%n';
 
 /**
  * Program
@@ -38,13 +38,20 @@ function parseLogs(text) {
 
   return text
     .replace(/[ \t]+$/gm, '')
-    .split(/(?=^commit [a-f0-9]{40})/m)
+    .split(/(?=^([|*\/\\] *)*commit [a-f0-9]{40})/m)
     .map(function(log) {
       log = log.trim();
+
+      // TODO: Parse this.
+      // log = log.replace(/^([|*\/\\] ?)* */gm, '');
+      // log = log.replace(/^([|*\/\\] *)*/gm, '');
+      log = log.replace(/^([|*\/\\] *)* */gm, '');
+
       if (!log) return null;
 
       log = {
         id: grab(log, /^commit ([a-f0-9]{40})\n/),
+        parents: grab(log, /\Parents:[ \t]*([^\n]*)/),
         author: grab(log, /\nAuthor:[ \t]+([^\n]+)/),
         authorDate: grab(log, /\nAuthorDate:[ \t]+([^\n]+)/),
         committer: grab(log, /\nCommit:[ \t]+([^\n]+)/),
@@ -59,6 +66,15 @@ function parseLogs(text) {
       log.authorName = log.author.split(' <')[0];
       log.authorEmail = (log.author.split(' <')[1] || '').slice(0, -1);
 
+      if (log.parents.trim()) {
+        log.parents = log.parents.trim().split(/\s+/);
+        if (log.parents.length > 1) {
+          log.merge = log.parents;
+        }
+      } else {
+        log.parents = [];
+      }
+
       if (log.refs === '()') log.refs = '';
 
       return log;
@@ -72,7 +88,7 @@ function getLogs(repo, branch, callback) {
     branch = null;
   }
 
-  var args = ['log', '--format=' + FORMAT];
+  var args = ['log', '--graph', '--format=' + FORMAT];
 
   if (branch) args.push(branch);
 
@@ -145,27 +161,34 @@ function getBranches(repo, callback) {
   });
 }
 
-function showCommit(repo, id, file, callback) {
+function showCommit(repo, log, file, callback) {
   if (!callback) {
     callback = file;
     file = null;
   }
 
+  if (typeof log !== 'object') {
+    log = { id: log };
+  }
+
+  var id = log.id;
+
   if (file) id += ':' + file;
 
-  var action = id === 'HEAD'
+  var action = id === 'HEAD' || log.merge
     ? 'diff'
     : 'show';
 
   var cmd = 'git '
     + action
     + ' '
-    + quote(id)
+    + (log.merge ? log.merge.join(' ') : quote(id))
     + (p.whitespace ? ' -w' : '')
     + (p.context ? ' --unified=' + quote(p.context) : '')
     + (p.patience ? ' --patience' : '')
     + (p.minimal ? ' --minimal' : '')
     + (p.word ? ' --word-diff=plain' : '')
+    + (action === 'show' ? ' --format=fuller' : '')
     + ' --patch-with-stat'
     + ' --no-ext-diff'
     + ' --color=always | less -c -R';
@@ -455,7 +478,7 @@ function render(opt, callback) {
 
         if (cmd === 'show' || cmd === 'file') {
           pause();
-          return showCommit(opt.repo, enter.id, val, function() {
+          return showCommit(opt.repo, enter.log, val, function() {
             return resume();
           });
         }
@@ -585,7 +608,7 @@ function render(opt, callback) {
       p.showCursor();
       p.disableMouse();
       p.input.pause();
-      return showCommit(opt.repo, logs[p.offset + p._index - 1].id, function() {
+      return showCommit(opt.repo, logs[p.offset + p._index - 1], function() {
         p.input.resume();
         p.enableMouse();
         p.clear();
@@ -601,6 +624,7 @@ function render(opt, callback) {
       p.write(key.name === 's' ? 'Show File: ' : ':');
       p._enter = {
         id: logs[p.offset + p._index - 1].id,
+        log: logs[p.offset + p._index - 1],
         data: key.name === 's' ? 'show ' : ''
       };
       return;
