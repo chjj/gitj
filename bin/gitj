@@ -299,6 +299,7 @@ function render(opt, callback) {
   });
 
   function pause() {
+    p._paused = true;
     p.clear();
     p.move(1, 1);
     p.showCursor();
@@ -308,6 +309,7 @@ function render(opt, callback) {
   }
 
   function resume() {
+    p._paused = false;
     p.alternateBuffer();
     p.input.resume();
     p.enableMouse();
@@ -606,17 +608,9 @@ function render(opt, callback) {
     }
 
     if (key.name === 'right' || key.name === 'l' || key.name === 'enter') {
-      p.clear();
-      p.move(1, 1);
-      p.showCursor();
-      p.disableMouse();
-      p.input.pause();
+      pause();
       return showCommit(opt.repo, logs[p.offset + p._index - 1], function() {
-        p.input.resume();
-        p.enableMouse();
-        p.clear();
-        p.hideCursor();
-        renderList();
+        return resume();
       });
     }
 
@@ -810,6 +804,7 @@ function render(opt, callback) {
   p.on('keypress', onkey);
 
   p.on('resize', function() {
+    if (p._paused) return;
     if (p._index > p.rows - p.statusbar) {
       p._index = p.rows - p.statusbar;
     }
