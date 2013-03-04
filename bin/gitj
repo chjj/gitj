@@ -72,7 +72,7 @@ function parseLogs(text) {
       if (log.parents.trim()) {
         log.parents = log.parents.trim().split(/\s+/);
         if (log.parents.length > 1) {
-          log.merge = log.parents;
+          log.merge = true;
         }
       } else {
         log.parents = [];
@@ -185,7 +185,7 @@ function showCommit(repo, log, file, callback) {
   var cmd = 'git '
     + action
     + ' '
-    + (log.merge ? log.merge.join(' ') : quote(id))
+    + (log.merge ? log.parents[0] + ' ' + id : quote(id))
     + (p.whitespace ? ' -w' : '')
     + (p.context ? ' --unified=' + quote(p.context) : '')
     + (p.patience ? ' --patience' : '')
