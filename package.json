@@ -2,7 +2,7 @@
   "name": "gitj",
   "description": "gitk in your terminal",
   "author": "Christopher Jeffrey",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "main": "./bin/gitj",
   "bin": "./bin/gitj",
   "man": "./man/gitj.1",
@@ -13,6 +13,6 @@
   "keywords": ["git", "gitk"],
   "tags": ["git", "gitk"],
   "dependencies": {
-    "blessed": "0.0.4"
+    "blessed": "0.0.6"
   }
 }
